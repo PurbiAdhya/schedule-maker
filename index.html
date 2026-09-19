@@ -1931,7 +1931,7 @@
     .section-preview.warn {background:#fffaeb;border-color:#fedf89;color:#7a2e0e;}
     .section-preview.bad {background:#fef3f2;border-color:#fda29b;color:#912018;}
     .room-column.addable {cursor:copy;}
-    .room-column.addable:hover {background:var(--primary-soft);}
+    .room-column.addable:hover {background:transparent;}
     @media(max-width:700px) {
       .section-list-head {grid-template-columns:1fr;align-items:start;}
       .section-list-tools input {min-width:0;width:100%;}
@@ -1988,6 +1988,24 @@
 }
 @media(max-width:420px) {#sectionDialog .form-grid {grid-template-columns:1fr;}}
 @media print {#sectionDialog {display:none!important;}}
+</style><style>
+#backupDialog {width:min(620px,calc(100vw - 24px));max-height:90vh;padding:0;border:1px solid var(--border);border-radius:16px;color:var(--ink);background:white;box-shadow:0 24px 70px #10223340;}
+#backupDialog::backdrop {background:#10223366;}
+.backup-body {padding:22px;}.backup-body p {line-height:1.55;}.backup-actions {display:flex;gap:10px;flex-wrap:wrap;margin:20px 0;}
+#backupStatus {margin:14px 0 0;font-size:14px;}#backupStatus:empty {display:none;}#backupStatus.backup-error {color:#a12c2c;}
+#backupPreview {margin-top:20px;padding:16px;border:1px solid var(--border);border-radius:10px;background:var(--primary-soft);}
+#backupPreviewSummary {font-weight:700;margin:0;}#backupPreviewDate {font-size:12px;color:var(--muted);}
+@media print {#backupDialog {display:none!important;}}
+</style><style>
+.grid-placement-controls {display:grid;grid-template-columns:minmax(200px,1fr) minmax(140px,220px);gap:10px 16px;background:white;border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:12px;}
+.grid-placement-controls label {font-size:12px;margin:0;}.grid-placement-controls select {display:block;width:100%;min-width:0;margin-top:5px;}
+#gridSlotReadout {grid-column:1/-1;margin:0;min-height:2.8em;font-size:12px;line-height:1.4;color:var(--muted);}
+.grid-slot-preview {position:absolute;left:1px;right:1px;z-index:15;pointer-events:none;border:2px dashed #315f78;border-radius:5px;background:#dcebf1b3;color:#193c50;white-space:pre-line;overflow:hidden;font-size:10px;font-weight:700;line-height:1.2;padding:3px;box-sizing:border-box;}
+.grid-slot-preview.primary {border-style:solid;background:#c7e1eccc;}
+.grid-slot-preview.busy {border-color:#a45312;background:#ffebcecc;color:#773c0d;}
+#removeSectionBtn {margin-left:auto;}
+@media(max-width:650px) {.grid-placement-controls {grid-template-columns:1fr;}#removeSectionBtn {margin-left:0;}}
+@media print {.grid-placement-controls,.grid-slot-preview {display:none!important;}}
 </style></head>
 <body>
 <header class="app-header">
@@ -1998,7 +2016,7 @@
 <p>Plan and adjust your department’s weekly schedule.</p>
 </div>
 </div>
-<div class="save-indicator"><span aria-hidden="true">✓</span> Changes save automatically</div>
+<div class="save-indicator"><span aria-hidden="true">✓</span> Saved in this browser</div>
 </header>
 <div class="workspace-shell">
 <div class="workspace-content">
@@ -2017,7 +2035,7 @@
 <div><strong id="remainingStat">0</strong><span>Sections to place</span></div>
 <div><strong id="conflictStat">0</strong><span>Needs attention</span></div>
 </div>
-<div class="schedule-toolbar"><button onclick="toggleSectionEditor()" type="button">Add a section</button><button class="secondary" onclick="openScheduleList()" type="button">Scheduled sections</button><button class="secondary" onclick="openCourseOfferingsExport()" type="button">Course offerings export</button><button class="secondary" onclick="printDepartmentSchedule()" type="button">Print schedule</button><button class="danger" onclick="clearSchedule()" type="button">Clear schedule</button></div><p class="status" id="scheduleStatus">No scheduled courses yet. Click a block or use the list to edit/delete.</p>
+<div class="schedule-toolbar"><button onclick="toggleSectionEditor()" type="button">Add a section</button><button class="secondary" onclick="openScheduleList()" type="button">Scheduled sections</button><button class="secondary" onclick="openCourseOfferingsExport()" type="button">Course offerings export</button><button class="secondary" onclick="printDepartmentSchedule()" type="button">Print schedule</button><button class="secondary" onclick="openBackupDialog()" type="button">Backup &amp; transfer</button><button class="danger" onclick="clearSchedule()" type="button">Clear schedule</button></div><p class="status" id="scheduleStatus">No scheduled courses yet. Click a block or use the list to edit/delete.</p>
 <div class="progress-panel">
 <div class="progress-card">
 <div class="progress-top">
@@ -2042,8 +2060,13 @@
 <main>
 
 <div class="grid-section-heading" id="scheduleReviewStart">
-<div><h2>Weekly schedule</h2><p>Click a course block to change it, or click any empty spot in the grid to add a section in that room and time.</p></div>
+<div><h2>Weekly schedule</h2><p>Click a course block to edit or remove it. Only courses with sections still to place appear below. Choose one, then hover over the grid to select a meeting slot.</p></div>
 <button class="secondary" onclick="printDepartmentSchedule()" type="button">Print department schedule</button>
+</div>
+<div class="grid-placement-controls">
+<label for="gridCourseSelect">Course to place<select id="gridCourseSelect" onchange="updateGridPlacementCourse()"></select></label>
+<label for="gridPatternSelect">Meeting pattern<select id="gridPatternSelect" onchange="clearGridSlotPreview(); document.getElementById('gridSlotReadout').textContent=gridPlacementHelp()"><option value="">Suggested</option></select></label>
+<p id="gridSlotReadout" role="status" aria-live="polite"></p>
 </div>
 <div class="table-wrap focus-grid-wrap">
 <div class="linear-schedule" id="scheduleTable"></div>
@@ -2197,10 +2220,25 @@
 <div class="primary-form-actions">
 <button form="addForm" id="submitScheduleBtn" type="submit">Add to schedule</button>
 <button class="secondary" id="addAnotherBtn" onclick="saveAndAddAnother()" type="button">Save &amp; add another</button>
+<button class="danger" id="removeSectionBtn" onclick="deleteScheduled(editingId)" type="button" hidden>Remove from schedule</button>
 <button class="secondary" id="cancelEditBtn" onclick="closeSectionEditor()" style="display:none;" type="button">Cancel edit</button>
 </div>
 <div class="simple-tip"><strong>Tip:</strong> TR 12:15–1:30 p.m. remains blocked for Common Hour.</div>
 </section></dialog><dialog aria-labelledby="setupTitle" id="setupDialog"><div class="setup-dialog-header"><h2 id="setupTitle">Courses</h2><button class="secondary" onclick="closeSetup()">Done</button></div><div id="setupCourses"><div class="source-row"><label for="recentSource">Pull courses from</label><select id="recentSource"><option value="recent">Matching recent semester</option><option value="fall">Fall 2026</option><option value="spring">Spring 2026</option></select><button class="secondary" onclick="importRecentCourses()" type="button">Load courses</button></div><p class="help-text">Select courses, a typical instructor, and how many sections of each course you plan to offer. Set the count above 1 for multi-section courses, or use <strong>+ Add</strong> to place another section right away. Missing or conflicting assignments stay “Decide later”.</p><section class="panel controls offered-panel" id="coursesOfferedPanel"><div class="collapsible-body"><div class="course-search-row"><div><label for="courseSearch">Find or add an offered course</label><input id="courseSearch" placeholder="Search MTH 121, data, physics..." type="text"/></div></div><div class="buttons" id="departmentFilters"><button class="secondary filter-active" data-filter="ALL" onclick="setDepartmentFilter('ALL')" type="button">All</button><button class="secondary" data-filter="MTH" onclick="setDepartmentFilter('MTH')" type="button">MTH</button><button class="secondary" data-filter="CSC" onclick="setDepartmentFilter('CSC')" type="button">CSC</button><button class="secondary" data-filter="DSC" onclick="setDepartmentFilter('DSC')" type="button">DSC</button><button class="secondary" data-filter="PHY" onclick="setDepartmentFilter('PHY')" type="button">PHY</button><button class="danger" onclick="clearCourses()" type="button">Clear Selected</button></div><p class="status" id="courseStatus">No courses selected yet.</p><div class="course-picker" id="coursePicker" style="margin-top:12px;"></div></div></section></div><div hidden="" id="setupTimes"><section class="" id="page-times"><p class="time-intro">Choose the days, then select a time to edit.</p><div id="classTimesManager"></div><details class="time-other"><summary>Other options</summary><p>Existing scheduled sections keep their saved times.</p><button class="secondary small" onclick="resetClassTimes()" type="button">Restore all default times</button></details></section></div></dialog><script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+<dialog id="backupDialog" aria-labelledby="backupTitle">
+<div class="setup-dialog-header"><h2 id="backupTitle">Backup &amp; transfer</h2><button class="secondary" type="button" onclick="closeBackupDialog()">Close</button></div>
+<div class="backup-body">
+<p>Save a copy of your courses, schedule, instructors, rooms, class times, colors, and settings.</p>
+<p class="help-text">On another device, open this updated HTML app, then import your backup file. Changes stay in each browser until you export and transfer a new backup.</p>
+<div class="backup-actions"><button type="button" onclick="exportBackup()">Export backup</button><button class="secondary" type="button" onclick="document.getElementById('backupFile').value=''; document.getElementById('backupFile').click()">Import backup</button></div>
+<input id="backupFile" type="file" accept=".json,application/json" hidden aria-label="Choose a schedule backup" />
+<p id="backupStatus" role="status" aria-live="polite"></p>
+<div id="backupPreview" hidden>
+<p id="backupPreviewSummary"></p><p id="backupPreviewDate"></p>
+<p>This replaces this browser’s schedule and setup. Export a backup of the current data first if you want to keep it.</p>
+<button id="confirmBackupImport" type="button" onclick="confirmBackupImport()" disabled>Replace data and import</button>
+<button class="secondary" type="button" onclick="closeBackupDialog()">Cancel</button>
+</div></div></dialog>
 <script>
     const courseCatalog = [
       {
@@ -3126,6 +3164,8 @@
     const focusActionText = document.getElementById("focusActionText");
     const focusPlanButton = document.getElementById("focusPlanButton");
 
+    let gridPlacementContext = null;
+    let hoveredGridSlot = null;
     let sectionEditorScroll = 0;
     function toggleSectionEditor(forceOpen) {
       if (forceOpen === false) return closeSectionEditor();
@@ -3134,10 +3174,17 @@
         openSetup("courses");
         return;
       }
+      if (forceOpen !== true && !coursesStillToPlace().length) {
+        alert('All planned sections are scheduled. Increase Sections to offer in Courses, or use + Section on an existing section to add another.');
+        openSetup('courses');
+        return;
+      }
       const modal = document.getElementById("sectionDialog");
       if (forceOpen !== true) {
         cancelEdit();
         populateCourseSelect();
+        const selectedCourse = document.getElementById("gridCourseSelect").value;
+        if (offeredCodes.includes(selectedCourse)) courseSelect.value = selectedCourse;
         applyTypicalAssignments();
       }
       document.getElementById("sectionDialogTitle").textContent = editingId ? "Adjust section" : "Add a section";
@@ -3154,15 +3201,26 @@
     }
     function applyTypicalAssignments() {
       const code = courseSelect.value;
+      const course = getCourse(code);
       facultySelect.value = rotationTypicalFaculty[code] || "";
-      const typicalRoom = getTypicalRoom(code);
-      roomSelect.value = rooms.includes(typicalRoom) ? typicalRoom : "";
-      if (isOnlineRoom(typicalRoom)) {
-        dayPatternSelect.value = "ONLINE";
-        populateMeetingTimeSelect("NONE");
-      } else if (dayPatternSelect.value === "ONLINE") {
-        dayPatternSelect.value = dayPatterns.find(pattern => pattern.id !== "ONLINE").id;
-        populateMeetingTimeSelect();
+      const historicalRoom = getTypicalRoom(code);
+      const defaultRoom = gridPlacementContext?.room
+        || (rooms.includes(historicalRoom) ? historicalRoom : '')
+        || (isLabCourse(course) && rooms.includes('BL008') ? 'BL008' : rooms.find(room => !isOnlineRoom(room))) || '';
+      roomSelect.value = defaultRoom;
+      if (isOnlineRoom(defaultRoom)) {
+        dayPatternSelect.value = 'ONLINE';
+        populateMeetingTimeSelect('NONE');
+      } else {
+        const candidates = suggestedCourseSlots(course).filter(slotAvoidsCommonHour);
+        const anchor = gridPlacementContext;
+        const sameSlot = anchor && candidates.find(slot => slot.id === anchor.slot.id);
+        const nearest = anchor && chooseGridSlot(course,anchor.day,anchor.minutes);
+        const best = sameSlot || nearest || candidates[0];
+        if (best) useSuggestedSlot(best);
+        else if (dayPatternSelect.value === 'ONLINE') {
+          dayPatternSelect.value = 'MWF'; populateMeetingTimeSelect();
+        }
       }
       if (!editingId) sectionInput.value = nextSectionNumber(code);
       updateSectionHint();
@@ -3902,7 +3960,7 @@
       schedulingRulesList.innerHTML = schedulingRules.map(rule => `
         <div class="rule-card ${rule.strength}">
           <div><div class="rule-main">${escapeHtml(ruleTargetLabel(rule))} → ${escapeHtml(rule.room)}</div><div class="rule-detail">${rule.strength === "strict" ? "Strict requirement" : "Loose preference"}</div></div>
-          <button type="button" class="danger small" onclick="deleteSchedulingRule('${escapeHtml(rule.id)}')">Delete</button>
+          <button type="button" class="danger small" onclick="deleteSchedulingRule('${escapeHtml(rule.id)}')">Remove</button>
         </div>`).join("") || `<p class="empty">No scheduling rules yet.</p>`;
     }
 
@@ -4039,7 +4097,7 @@
             <button type="button" class="drag-handle" title="Drag to reorder" aria-label="Drag to reorder" draggable="true" ondragstart="startListEditorDrag(event, ${index})" ondragend="endListEditorDrag()">☰</button>
             <input type="text" value="${escapeHtml(row.value)}" oninput="updateListEditorValue(${index}, this.value)" ${row.fixed ? "readonly" : ""} />
             <span class="usage-pill">${escapeHtml(fixedLabel)}</span>
-            <button type="button" class="danger small" onclick="removeListEditorItem(${index})" ${canDelete ? "" : "disabled"}>Delete</button>
+            <button type="button" class="danger small" onclick="removeListEditorItem(${index})" ${canDelete ? "" : "disabled"}>Remove</button>
           </div>
         `;
       }).join("");
@@ -4322,11 +4380,15 @@
       renderAll();
     }
 
+    function coursesStillToPlace() {
+      return getOfferedCourses().filter(course => sectionsForCourse(course.code).length < getSectionTarget(course.code));
+    }
+
     function populateCourseSelect() {
       const previous = courseSelect.value;
-      const offered = getOfferedCourses();
+      const offered = editingId ? getOfferedCourses() : coursesStillToPlace();
       if (!offered.length) {
-        courseSelect.innerHTML = `<option value="">Select courses using the Courses button</option>`;
+        courseSelect.innerHTML = `<option value="">${offeredCodes.length ? "All planned sections are scheduled" : "Select courses using the Courses button"}</option>`;
         courseSelect.disabled = true;
         return;
       }
@@ -4454,6 +4516,7 @@
     });
 
     roomSelect.addEventListener("change", function() {
+      if (gridPlacementContext) gridPlacementContext.room = roomSelect.value;
       if (isOnlineRoom(roomSelect.value)) {
         dayPatternSelect.value = "ONLINE";
         populateMeetingTimeSelect("NONE");
@@ -4475,7 +4538,7 @@
       if (title.includes("laboratory") || /\blab\b/.test(title)) return 180;
       if (credits >= 4) return 200;
       if (credits >= 3) return 150;
-      if (credits >= 1) return 75;
+      if (credits >= 1) return 50;
       return 50;
     }
 
@@ -4693,10 +4756,11 @@ Add the section anyway?`)) return;
       saveAll();
       renderAll();
 
-      if (addAnother && !wasEditing) {
-        sectionInput.value = nextSectionNumber(newItem.courseCode);
+      if (addAnother && !wasEditing && courseSelect.value) {
+        if (courseSelect.value !== newItem.courseCode) applyTypicalAssignments();
+        sectionInput.value = nextSectionNumber(courseSelect.value);
         updateSectionHint();
-        scheduleStatus.textContent = `Added ${newItem.courseLabel}. Adjust the details below to add the next section.`;
+        scheduleStatus.textContent = `Added ${newItem.courseLabel}. Adjust the details to add the next remaining section.`;
         scheduleStatus.className = "status ok";
         sectionInput.focus();
         sectionInput.select();
@@ -4847,12 +4911,20 @@ Add the section anyway?`)) return;
         const day = column.dataset.day;
         if (isOnlineRoom(room)) return;
         column.classList.add("addable");
-        column.title = `Click to add a section in ${roomDisplayName(room)} on ${day}`;
+        const pointerMinutes = event => timeToMinutes(scheduleStart) + (event.clientY - column.getBoundingClientRect().top) / pixelsPerMinute;
+        column.addEventListener("pointermove", event => {
+          if (event.target !== column) { clearGridSlotPreview(); document.getElementById("gridSlotReadout").textContent = "Click the scheduled section to edit or remove it."; return; }
+          previewGridSlot(column,pointerMinutes(event));
+        });
+        column.addEventListener("pointerleave", () => {
+          clearGridSlotPreview();
+          document.getElementById('gridSlotReadout').textContent = gridPlacementHelp();
+        });
         column.addEventListener("click", event => {
           if (event.target !== column) return;
-          const bounds = column.getBoundingClientRect();
-          const minutes = timeToMinutes(scheduleStart) + (event.clientY - bounds.top) / pixelsPerMinute;
-          quickAddAtGridSpot(day, room, minutes);
+          const minutes = pointerMinutes(event);
+          const best = previewGridSlot(column,minutes);
+          if (best) quickAddAtGridSpot(day,room,minutes,best);
         });
       });
 
@@ -4917,6 +4989,10 @@ Add the section anyway?`)) return;
             <span class="faculty">${escapeHtml(lastName(item.faculty))}</span>
             ${reasons.length ? `<div class="conflict-note">!</div>` : ""}
           `;
+          event.tabIndex = 0;
+          event.setAttribute('role','button');
+          event.setAttribute('aria-label',`${item.courseLabel}, ${item.faculty}, ${item.slotLabel}, ${item.room}. Edit or remove section.`);
+          event.addEventListener('keydown', e => { if(e.key === 'Enter' || e.key === ' ') {e.preventDefault(); editScheduled(item.id);} });
           event.addEventListener("click", () => editScheduled(item.id));
           column.appendChild(event);
         });
@@ -4980,7 +5056,7 @@ Add the section anyway?`)) return;
             <div class="item-actions">
               <button type="button" class="secondary small" onclick="editScheduled('${escapeHtml(item.id)}')">Edit</button>
               <button type="button" class="secondary small" onclick="duplicateScheduled('${escapeHtml(item.id)}')" title="Start another section of ${escapeHtml(item.displayCode || item.courseCode)}">+ Section</button>
-              <button type="button" class="danger small" onclick="deleteScheduled('${escapeHtml(item.id)}')">Delete</button>
+              <button type="button" class="danger small" onclick="deleteScheduled('${escapeHtml(item.id)}')">Remove</button>
             </div>
           </div>
         `;
@@ -5069,7 +5145,7 @@ Add the section anyway?`)) return;
           <div class="item-actions" style="margin-top:8px;">
             <button type="button" class="secondary small" onclick="editScheduled('${escapeHtml(item.id)}')">Edit</button>
             <button type="button" class="secondary small" onclick="duplicateScheduled('${escapeHtml(item.id)}')" title="Start another section of ${escapeHtml(item.displayCode || item.courseCode)}">+ Section</button>
-            <button type="button" class="danger small" onclick="deleteScheduled('${escapeHtml(item.id)}')">Delete</button>
+            <button type="button" class="danger small" onclick="deleteScheduled('${escapeHtml(item.id)}')">Remove</button>
           </div>
         </div>
       `).join("");
@@ -5127,6 +5203,7 @@ Add the section anyway?`)) return;
       populateCourseSelect();
       renderFacultyColorControls();
       renderScheduleTable();
+      renderGridPlacementControls();
       renderOfferedList();
       renderScheduledList();
       renderStatus();
@@ -5144,6 +5221,7 @@ Add the section anyway?`)) return;
     }
 
     function updateEditControls() {
+      document.getElementById("removeSectionBtn").hidden = !editingId;
       if (editingId) {
         submitScheduleBtn.textContent = "Save changes";
         submitScheduleBtn.classList.add("success");
@@ -5158,6 +5236,8 @@ Add the section anyway?`)) return;
     }
 
     function editScheduled(id) {
+      gridPlacementContext = null;
+      clearGridSlotPreview();
       closeSetup();
       const item = scheduled.find(entry => entry.id === id);
       if (!item) return;
@@ -5167,6 +5247,7 @@ Add the section anyway?`)) return;
         populateCourseSelect();
       }
       editingId = id;
+      populateCourseSelect();
       courseSelect.value = item.courseCode;
       sectionInput.value = item.section || "";
       facultySelect.value = item.faculty;
@@ -5181,6 +5262,7 @@ Add the section anyway?`)) return;
     }
 
     function cancelEdit() {
+      gridPlacementContext = null;
       editingId = null;
       updateEditControls();
       addForm.reset();
@@ -5191,9 +5273,12 @@ Add the section anyway?`)) return;
 
     function deleteScheduled(id) {
       const target = scheduled.find(item => item.id === id);
-      if (target && !confirm(`Delete ${target.courseLabel} (${target.faculty}, ${target.slotLabel})?`)) return;
-      if (editingId === id) editingId = null;
+      if (!target) return;
+      if (!confirm(`Remove ${target.courseLabel} (${target.faculty}, ${target.slotLabel}) from the schedule? The course will stay in Courses so you can place it again.`)) return;
+      const closeEditor = editingId === id;
+      if (closeEditor) closeSectionEditor();
       scheduled = scheduled.filter(item => item.id !== id);
+      if (courseOfferingsExportSettings.rows) delete courseOfferingsExportSettings.rows[id];
       saveAll();
       renderAll();
     }
@@ -5958,34 +6043,125 @@ Add the section anyway?`)) return;
       window.setTimeout(() => dayPatternSelect.focus(), 60);
     }
 
-    function quickAddAtGridSpot(day, room, minutes) {
-      if (!offeredCodes.length) {
-        alert("Select this semester\u2019s courses first using the Courses button.");
-        return;
+    function isLabCourse(course) { return /laboratory|\blab\b/i.test(course?.title || ''); }
+    function slotDuration(slot) { return timeToMinutes(slot.end) - timeToMinutes(slot.start); }
+    function suggestedCourseSlots(course) {
+      if (!course) return [];
+      const physical = timeSlots.filter(slot => !slot.noMeeting && slot.start && slot.end);
+      if (isLabCourse(course)) return physical.filter(slot => slot.days.length === 1 && slotDuration(slot) >= 150 && slotDuration(slot) <= 210);
+      const credits = numericCredits(course);
+      if (credits >= 4) return physical.filter(slot => slot.dayPatternId === 'MTRF');
+      if (credits === 1) {
+        // Reuse known 50-minute times on one day; install only a chosen slot.
+        const base = physical.filter(slot => slotDuration(slot) === 50);
+        const times = [...new Map((base.length ? base : morning50).map(slot => [slot.start+'-'+slot.end,slot])).values()];
+        return dayPatterns.filter(pattern => pattern.days.length === 1).flatMap(pattern => times.map(time => {
+          const existing = (meetingTimeOptionsByPattern[pattern.id] || []).find(t => t.start === time.start && t.end === time.end);
+          return createSlot(pattern, existing || timeOption('single-'+time.start.replace(':','')+'-'+time.end.replace(':',''), '', time.start, time.end));
+        }));
       }
-      rebuildClassTimeCaches();
-      const candidates = timeSlots.filter(slot => !slot.noMeeting && (slot.days || []).includes(day));
-      if (!candidates.length) return;
-      const best = candidates
-        .map(slot => {
-          const start = timeToMinutes(slot.start);
-          const end = timeToMinutes(slot.end);
-          const contains = minutes >= start && minutes <= end ? 0 : 1;
-          return { slot, score: contains * 10000 + Math.abs(start - minutes) };
-        })
-        .sort((a, b) => a.score - b.score)[0].slot;
-
+      return physical.filter(slot => (slot.dayPatternId === 'MWF' && slotDuration(slot) >= 45 && slotDuration(slot) <= 60)
+        || (['TR','MW','WF'].includes(slot.dayPatternId) && slotDuration(slot) >= 70 && slotDuration(slot) <= 90));
+    }
+    function slotAvoidsCommonHour(slot) {
+      return !commonHourBlocks.some(block => slot.days.some(day => block.days.includes(day)) && timesOverlap(slot.start, slot.end, block.start, block.end));
+    }
+    function gridCourse() { return getCourse(document.getElementById('gridCourseSelect').value); }
+    function renderGridPlacementControls() {
+      const picker = document.getElementById('gridCourseSelect');
+      const previous = picker.value;
+      const offered = coursesStillToPlace();
+      picker.innerHTML = offered.length ? offered.map(course => `<option value="${escapeHtml(course.code)}">${escapeHtml(course.displayCode)} · ${escapeHtml(course.title)} (${escapeHtml(course.credits)} cr) · ${sectionProgressLabel(course.code)}</option>`).join('') : `<option value="">${offeredCodes.length ? 'All planned sections are scheduled' : 'Choose courses first'}</option>`;
+      picker.disabled = !offered.length;
+      if (offered.some(course => course.code === previous)) picker.value = previous;
+      else picker.value = (offered.find(course => sectionsForCourse(course.code).length < getSectionTarget(course.code)) || offered[0])?.code || '';
+      updateGridPlacementCourse();
+    }
+    function gridPlacementHelp() {
+      const course = gridCourse();
+      if (!course) return offeredCodes.length ? 'All planned sections are scheduled. To add more, increase Sections to offer in Courses or use + Section on an existing section.' : 'Select courses using the Courses button, then choose a course to place here.';
+      const type = isLabCourse(course) ? 'One lab meeting of about 3 hours' : numericCredits(course) >= 4 ? 'MTRF meetings' : numericCredits(course) === 1 ? 'One 50-minute meeting per week' : 'MWF meetings or two longer meetings per week';
+      return `${type}. Hover to highlight a slot; click to add. Use Meeting pattern to choose between overlapping options.`;
+    }
+    function updateGridPlacementCourse() {
+      clearGridSlotPreview();
+      const pattern = document.getElementById('gridPatternSelect');
+      const previous = pattern.value;
+      const available = new Set(suggestedCourseSlots(gridCourse()).map(slot => slot.dayPatternId));
+      pattern.innerHTML = '<option value="">Suggested</option>' + dayPatterns.filter(p => available.has(p.id)).map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.label)}</option>`).join('');
+      if (available.has(previous)) pattern.value = previous;
+      pattern.disabled = !available.size;
+      document.getElementById('gridSlotReadout').textContent = gridPlacementHelp();
+    }
+    function chooseGridSlot(course, day, minutes, patternId = '') {
+      const candidates = suggestedCourseSlots(course).filter(slot => slot.days.includes(day) && (!patternId || slot.dayPatternId === patternId) && slotAvoidsCommonHour(slot));
+      const ranked = candidates.map(slot => {
+        const start = timeToMinutes(slot.start), end = timeToMinutes(slot.end);
+        const inside = minutes >= start && minutes < end;
+        const edge = Math.min(Math.abs(minutes-start),Math.abs(minutes-end));
+        return {slot,inside,edge,distance:Math.abs(minutes-start)};
+      }).filter(item => item.inside || item.edge <= 12)
+        .sort((a,b) => Number(b.inside)-Number(a.inside) || (a.inside ? a.distance-b.distance : a.edge-b.edge) || preferredPatternIds(course).indexOf(a.slot.dayPatternId)-preferredPatternIds(course).indexOf(b.slot.dayPatternId) || a.slot.id.localeCompare(b.slot.id));
+      return ranked[0]?.slot || null;
+    }
+    function clearGridSlotPreview() {
+      document.querySelectorAll('.grid-slot-preview').forEach(node => node.remove());
+      hoveredGridSlot = null;
+    }
+    function previewGridSlot(column, minutes) {
+      const course = gridCourse();
+      const slot = chooseGridSlot(course,column.dataset.day,minutes,document.getElementById('gridPatternSelect').value);
+      clearGridSlotPreview();
+      const readout = document.getElementById('gridSlotReadout');
+      if (!slot) {
+        readout.textContent = course ? 'No suggested slot here for this course. Try another day or time, or use Add a section for a custom choice.' : gridPlacementHelp();
+        return null;
+      }
+      const room = column.dataset.room;
+      const probe = buildScheduledItem(course,slot,rotationTypicalFaculty[course.code] || '',room,'','grid-preview');
+      const issues = conflictReasonsAgainst(probe,scheduled);
+      hoveredGridSlot = {slot,room,day:column.dataset.day,minutes,code:course.code};
+      slot.days.forEach(day => {
+        const target = Array.from(scheduleTable.querySelectorAll('.room-column')).find(node => node.dataset.day === day && node.dataset.room === room);
+        if (!target) return;
+        const marker = document.createElement('div');
+        marker.className = 'grid-slot-preview' + (day === column.dataset.day ? ' primary' : '') + (issues.length ? ' busy' : '');
+        marker.style.top = `${timeTop(slot.start)}px`;
+        marker.style.height = `${slotDuration(slot)*pixelsPerMinute}px`;
+        marker.textContent = `${slot.pattern}\n${formatClock(slot.start)}–${formatClock(slot.end)}`;
+        marker.setAttribute('aria-hidden','true');
+        target.appendChild(marker);
+      });
+      readout.textContent = `${course.displayCode} · ${slot.label} · ${roomDisplayName(room)}${issues.length ? ' · '+issues.join(' · ') : ' · Click to add'}`;
+      return slot;
+    }
+    function useSuggestedSlot(slot) {
+      if (!slot) return;
+      let option = (meetingTimeOptionsByPattern[slot.dayPatternId] || []).find(time => time.start === slot.start && time.end === slot.end);
+      if (!option) {
+        option = timeOption(slot.timeId,`${formatClock(slot.start)}-${formatClock(slot.end)}`,slot.start,slot.end);
+        (meetingTimeOptionsByPattern[slot.dayPatternId] ||= []).push(option);
+        rebuildClassTimeCaches();
+        saveAll();
+      }
+      dayPatternSelect.value = slot.dayPatternId;
+      populateMeetingTimeSelect(option.id);
+    }
+    function quickAddAtGridSpot(day, room, minutes, selectedSlot = null) {
+      const course = gridCourse();
+      if (!course) { openSetup('courses'); return; }
+      const best = selectedSlot || chooseGridSlot(course,day,minutes,document.getElementById('gridPatternSelect').value);
+      if (!best) return;
       cancelEdit();
+      gridPlacementContext = {day,room,minutes,slot:best};
       populateCourseSelect();
+      courseSelect.value = course.code;
       applyTypicalAssignments();
-      dayPatternSelect.value = best.dayPatternId;
-      populateMeetingTimeSelect(best.timeId);
+      useSuggestedSlot(best);
       roomSelect.value = room;
-      if (!editingId) sectionInput.value = nextSectionNumber(courseSelect.value);
       updateSectionHint();
-      updateSectionPreview();
+      clearGridSlotPreview();
       toggleSectionEditor(true);
-      window.setTimeout(() => courseSelect.focus(), 60);
     }
 
     function currentSectionCandidate() {
@@ -6124,6 +6300,186 @@ Add the section anyway?`)) return;
       populateStaticSelects();
       saveAll(); renderAll();
     }
+    // Portable backup format. Only these app-owned values may be restored.
+    const backupFields = {
+      offeredCourses: ['shcDepartmentOfferedCodesV7', () => offeredCodes],
+      sections: ['shcDepartmentScheduledV7', () => scheduled],
+      instructorColors: ['shcDepartmentFacultyColorsV7', () => facultyColors],
+      instructors: ['shcDepartmentFacultyListV1', () => faculty],
+      rooms: ['shcDepartmentRoomListV1', () => rooms],
+      exportSettings: ['shcCourseOfferingsExportSettingsV1', () => courseOfferingsExportSettings],
+      classTimes: ['shcDepartmentClassTimesV1', () => meetingTimeOptionsByPattern],
+      rotationFrequencies: ['shcRotationFrequenciesV1', () => rotationFrequencies],
+      typicalInstructors: ['shcRotationTypicalFacultyV1', () => rotationTypicalFaculty],
+      typicalRooms: ['shcRotationTypicalRoomsV1', () => rotationTypicalRooms],
+      sectionTargets: ['shcCourseSectionTargetsV1', () => courseSectionTargets],
+      rotationOverrides: ['shcRotationManualOverridesV1', () => rotationManualOverrides],
+      rotationStart: ['shcRotationStartV1', () => rotationStart],
+      planningDraft: ['shcQuickPlanDraftV1', () => quickPlanDraft],
+      sourceMode: ['shcQuickPlanSourceModeV1', () => quickPlanSourceMode, true],
+      viewMode: ['shcQuickPlanViewModeV1', () => quickPlanViewMode, true],
+      semester: ['shcSelectedPlanningSemesterV1', () => selectedPlanningSemester, true],
+      navigationCollapsed: ['shcWorkspaceNavCollapsedV1', () => workspaceNavCollapsed],
+      collapsedPanels: ['shcCollapsedPanels', () => collapsiblePanelIds.filter(id => document.getElementById(id)?.classList.contains('collapsed'))]
+    };
+    let pendingBackup = null;
+    let backupReadSequence = 0;
+    const backupLimitBytes = 5 * 1024 * 1024;
+
+    function backupMessage(message, isError = false) {
+      const status = document.getElementById('backupStatus');
+      status.textContent = message;
+      status.classList.toggle('backup-error', isError);
+    }
+    function clearBackupPreview() {
+      pendingBackup = null;
+      document.getElementById('backupPreview').hidden = true;
+      document.getElementById('confirmBackupImport').disabled = true;
+    }
+    function openBackupDialog() {
+      backupReadSequence++;
+      clearBackupPreview();
+      backupMessage('');
+      document.getElementById('backupFile').value = '';
+      document.getElementById('backupDialog').showModal();
+    }
+    function closeBackupDialog() {
+      backupReadSequence++;
+      clearBackupPreview();
+      document.getElementById('backupDialog').close();
+    }
+    function buildPortableBackup() {
+      if (courseOfferingsExportPanel?.open) saveExportSettingsFromUi();
+      const data = Object.fromEntries(Object.entries(backupFields).map(([name, field]) => [name, field[1]() ]));
+      return JSON.parse(JSON.stringify({app:'shc-schedule-maker', version:1, exportedAt:new Date().toISOString(), data}));
+    }
+    function exportBackup() {
+      try {
+        const backup = buildPortableBackup();
+        const filename = `shc-schedule-backup-${backup.data.semester.replace(/[^a-z0-9]+/gi,'-').toLowerCase()}-${new Date().toISOString().replace(/[:.]/g,'-')}.json`;
+        downloadTextFile(JSON.stringify(backup, null, 2), filename, 'application/json');
+        backupMessage('Backup downloaded. Open this app on your other device and import that JSON file.');
+      } catch (error) {
+        backupMessage('Could not export the backup. ' + error.message, true);
+      }
+    }
+    function validatePortableBackup(backup) {
+      const fail = message => { throw new Error(message); };
+      const record = v => v !== null && typeof v === 'object' && !Array.isArray(v);
+      const str = v => typeof v === 'string' && v.length <= 10000;
+      const strings = v => Array.isArray(v) && v.every(str);
+      const time = v => typeof v === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(v);
+      function inspect(v, depth = 0) {
+        if (depth > 20) fail('This backup contains invalid nested data.');
+        if (v && typeof v === 'object') Object.entries(v).forEach(([key, value]) => {
+          if (['__proto__','constructor','prototype'].includes(key)) fail('This backup contains unsupported fields.');
+          inspect(value, depth + 1);
+        });
+        else if (typeof v === 'string' && !str(v)) fail('A value in this backup is too long.');
+      }
+      inspect(backup);
+      if (!record(backup) || backup.app !== 'shc-schedule-maker') fail('Choose a JSON backup exported by SHC Schedule Maker.');
+      if (backup.version !== 1) fail('This backup format is not supported by this version of the app.');
+      const d = backup.data;
+      if (!record(d) || Object.keys(backupFields).some(key => !Object.prototype.hasOwnProperty.call(d,key))) fail('The backup is incomplete. Export a new backup from the original app.');
+      if (!str(backup.exportedAt) || !Number.isFinite(Date.parse(backup.exportedAt))) fail('The backup date is invalid.');
+      const code = value => str(value) && Boolean(getCourse(value));
+      const codes = value => strings(value) && value.every(code) && new Set(value).size === value.length;
+      if (!codes(d.offeredCourses)) fail('The course list contains duplicate or unrecognized courses.');
+      for (const key of ['instructors','rooms']) {
+        if (!strings(d[key]) || d[key].some(v => !v.trim()) || new Set(d[key]).size !== d[key].length) fail(`The ${key} list is invalid.`);
+      }
+      if (!d.rooms.includes(ONLINE_ROOM)) fail('The backup is missing the online room option.');
+      if (!Array.isArray(d.sections)) fail('The scheduled sections are invalid.');
+      const ids = new Set();
+      d.sections.forEach(item => {
+        if (!record(item) || !str(item.id) || !/^[a-zA-Z0-9_.-]+$/.test(item.id) || ids.has(item.id)) fail('A scheduled section has an invalid or duplicate ID.');
+        ids.add(item.id);
+        if (!code(item.courseCode) || !d.offeredCourses.includes(item.courseCode)) fail('A scheduled section refers to a course outside the offered course list.');
+        for (const key of ['displayCode','courseTitle','section','courseLabel','shortLabel','faculty','room','slotId','dayPatternId','timeId','slotLabel','pattern','start','end']) {
+          if (!str(item[key])) fail(`A scheduled section has an invalid ${key}.`);
+        }
+        if (!(str(item.credits) || typeof item.credits === 'number') || !d.instructors.includes(item.faculty) || !d.rooms.includes(item.room)) fail('A section has invalid credits, instructor, or room.');
+        if (!strings(item.days) || new Set(item.days).size !== item.days.length || !item.days.every(day => days.some(known => known.name === day))) fail('A section has invalid meeting days.');
+        if (item.days.length ? (!time(item.start) || !time(item.end) || item.end <= item.start) : (item.start !== '' || item.end !== '')) fail('A section has an invalid meeting time.');
+        if (!dayPatterns.some(p => p.id === item.dayPatternId)) fail('A section uses an unsupported day pattern.');
+      });
+      if (!record(d.classTimes)) fail('The class times are invalid.');
+      dayPatterns.forEach(pattern => {
+        const list = d.classTimes[pattern.id];
+        if (!Array.isArray(list)) fail(`Missing class times for ${pattern.label}.`);
+        const timeIds = new Set();
+        list.forEach(slot => {
+          if (!record(slot) || !str(slot.id) || !slot.id || timeIds.has(slot.id) || !str(slot.timeLabel)) fail('A class time is invalid or duplicated.');
+          timeIds.add(slot.id);
+          if (pattern.id === 'ONLINE' ? (slot.noMeeting !== true || slot.start !== '' || slot.end !== '') : (!time(slot.start) || !time(slot.end) || slot.end <= slot.start || Boolean(slot.noMeeting))) fail('A class time has an invalid start or end.');
+        });
+      });
+      for (const key of ['instructorColors','rotationFrequencies','typicalInstructors','typicalRooms','sectionTargets','rotationOverrides','exportSettings']) if (!record(d[key])) fail(`Invalid ${key} settings.`);
+      if (Object.values(d.instructorColors).some(color => !str(color) || !/^#[0-9a-f]{6}$/i.test(color))) fail('An instructor color is invalid.');
+      for (const key of ['rotationFrequencies','typicalInstructors','typicalRooms']) if (Object.entries(d[key]).some(([c,v]) => !code(c) || !str(v))) fail(`Invalid ${key} settings.`);
+      if (Object.entries(d.sectionTargets).some(([c,v]) => !code(c) || !Number.isInteger(v) || v < 1 || v > MAX_SECTIONS_PER_COURSE)) fail('A course section count is invalid.');
+      if (Object.values(d.rotationOverrides).some(v => !record(v) || !codes(v.add) || !codes(v.remove))) fail('The rotation overrides are invalid.');
+      if (!record(d.rotationStart) || !['Fall','Spring'].includes(d.rotationStart.term) || !Number.isInteger(d.rotationStart.year) || d.rotationStart.year < 2000 || d.rotationStart.year > 2200) fail('The semester is invalid.');
+      if (d.semester !== `${d.rotationStart.term} ${d.rotationStart.year}`) fail('The semester settings do not match.');
+      if (!Array.isArray(d.planningDraft) || d.planningDraft.some(v => !record(v) || !code(v.code) || !str(v.faculty) || !strings(v.semesters) || !strings(v.facultyOptions) || !str(v.sourceMode))) fail('The planning draft is invalid.');
+      if (!['recent','fall','spring','blank'].includes(d.sourceMode) || !['open','all'].includes(d.viewMode) || typeof d.navigationCollapsed !== 'boolean' || !strings(d.collapsedPanels) || d.collapsedPanels.some(id => !collapsiblePanelIds.includes(id))) fail('The saved view settings are invalid.');
+      if (!record(d.exportSettings.defaults) || !record(d.exportSettings.rows) || Object.values(d.exportSettings.defaults).some(v => !str(v)) || Object.values(d.exportSettings.rows).some(row => !record(row) || Object.values(row).some(v => !str(v)))) fail('The course offerings export settings are invalid.');
+      // Return only allowlisted fields; additional metadata is never written to storage.
+      return {app:backup.app,version:backup.version,exportedAt:backup.exportedAt,data:Object.fromEntries(Object.keys(backupFields).map(key => [key,d[key]]))};
+    }
+    async function previewBackupFile(file) {
+      const sequence = ++backupReadSequence;
+      clearBackupPreview();
+      if (!file) { backupMessage(''); return; }
+      backupMessage('Reading backup…');
+      try {
+        if (file.size > backupLimitBytes) throw new Error('Choose a backup smaller than 5 MB.');
+        const text = await file.text();
+        if (sequence !== backupReadSequence) return;
+        let parsed;
+        try { parsed = JSON.parse(text); } catch { throw new Error('This file is not valid JSON. Choose an exported schedule backup.'); }
+        pendingBackup = validatePortableBackup(parsed);
+        const d = pendingBackup.data;
+        document.getElementById('backupPreviewSummary').textContent = `${d.semester} · ${d.offeredCourses.length} courses · ${d.sections.length} sections · ${d.instructors.length} instructors · ${d.rooms.length} rooms`;
+        document.getElementById('backupPreviewDate').textContent = `Exported ${new Date(pendingBackup.exportedAt).toLocaleString()}`;
+        document.getElementById('backupPreview').hidden = false;
+        document.getElementById('confirmBackupImport').disabled = false;
+        backupMessage('Backup checked. Review the details below before importing.');
+      } catch (error) {
+        if (sequence !== backupReadSequence) return;
+        clearBackupPreview();
+        backupMessage(error.message, true);
+      }
+    }
+    function writePortableBackup(backup) {
+      const checked = validatePortableBackup(backup);
+      const entries = Object.entries(backupFields).map(([name, field]) => [field[0], field[2] ? checked.data[name] : JSON.stringify(checked.data[name])]);
+      const previous = entries.map(([key]) => [key, localStorage.getItem(key)]);
+      try { entries.forEach(([key,value]) => localStorage.setItem(key,value)); }
+      catch (error) {
+        try {
+          entries.forEach(([key]) => localStorage.removeItem(key));
+          previous.forEach(([key,value]) => { if (value !== null) localStorage.setItem(key,value); });
+        } catch { throw new Error('Import could not finish and local storage could not be restored. Keep your backup file and reopen the app in a browser with storage available.'); }
+        throw new Error('Import could not be saved. Your previous data was restored. Check that this browser allows local storage and has enough space.');
+      }
+    }
+    function reloadAfterBackupImport() { window.location.reload(); }
+    function confirmBackupImport() {
+      if (!pendingBackup) return;
+      const button = document.getElementById('confirmBackupImport');
+      button.disabled = true;
+      try {
+        writePortableBackup(pendingBackup);
+        pendingBackup = null;
+        backupMessage('Imported. Reloading your schedule…');
+        reloadAfterBackupImport();
+      } catch (error) { button.disabled = false; backupMessage(error.message, true); }
+    }
+    document.getElementById('backupFile').addEventListener('change', event => previewBackupFile(event.target.files[0]));
+    document.getElementById('backupDialog').addEventListener('cancel', event => { event.preventDefault(); closeBackupDialog(); });
+
     const savedSemesterMatch = selectedPlanningSemester.match(/^(Fall|Spring) (\d{4})$/);
     if (savedSemesterMatch) rotationStart = {term:savedSemesterMatch[1],year:Number(savedSemesterMatch[2])};
     document.getElementById("mainTerm").value = rotationStart.term;
